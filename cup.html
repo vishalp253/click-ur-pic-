@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LUMIÈRE — Smart Mirror</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Jost:wght@200;300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --dark: #0a0a0a;
+    --surface: #111111;
+    --glass: rgba(255,255,255,0.04);
+    --ring-warm: #ff9b4e;
+    --ring-blue: #4e90ff;
+    --ring-red: #ff4e6a;
+    --ring-yellow: #ffe04e;
+    --ring-purple: #b24eff;
+    --ring-mix: #a04eff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    font-family: 'Jost', sans-serif;
+    color: #fff;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ─── ENTRY SCREEN ─────────────────────────────────── */
+  #entry-screen {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    background: var(--dark);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+  }
+
+  #entry-screen.exit { opacity: 0; transform: scale(1.05); pointer-events: none; }
+  .entry-bg { position: absolute; inset: 0; overflow: hidden; }
+  .entry-bg::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse 60% 60% at 50% 50%, rgba(201,168,76,0.08) 0%, transparent 70%);
+    animation: pulse-bg 4s ease-in-out infinite;
+  }
+
+  @keyframes pulse-bg {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.02); }
+  }
+
+  .entry-content {
+    position: relative; z-index: 1; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 2rem;
+  }
+
+  .logo-mark {
+    width: 80px; height: 80px;
+    border: 1px solid rgba(201,168,76,0.3); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    position: relative; animation: float 3s ease-in-out infinite;
+  }
+
+  .logo-mark::before {
+    content: ''; position: absolute; inset: 6px;
+    border: 1px solid rgba(201,168,76,0.15); border-radius: 50%;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+
+  .entry-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(3rem, 8vw, 5.5rem); font-weight: 300;
+    letter-spacing: 0.3em; line-height: 1;
+  }
+  .entry-title span { color: var(--gold); font-style: italic; }
+
+  .entry-sub {
+    font-weight: 200; font-size: 0.8rem; letter-spacing: 0.4em;
+    text-transform: uppercase; color: rgba(255,255,255,0.35);
+  }
+
+  .enter-btn {
+    margin-top: 1rem; padding: 1rem 3.5rem; background: transparent;
+    border: 1px solid rgba(201,168,76,0.4); color: var(--gold-light);
+    font-family: 'Jost', sans-serif; font-size: 0.75rem;
+    letter-spacing: 0.35em; text-transform: uppercase; cursor: pointer;
+    transition: all 0.4s ease;
+  }
+
+  .enter-btn:hover {
+    border-color: var(--gold); color: #fff;
+    box-shadow: 0 0 30px rgba(201,168,76,0.15), inset 0 0 30px rgba(201,168,76,0.05);
+  }
+
+  /* ─── MIRROR SCREEN ─────────────────────────────────── */
+  #mirror-screen {
+    display: none; height: 100vh; flex-direction: column; position: relative;
+    overflow: hidden;
+  }
+  #mirror-screen.active { display: flex; }
+
+  /* TOP BAR */
+  .top-bar {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    padding: 1.5rem 2.5rem; position: relative; z-index: 10;
+  }
+
+  .top-bar-left, .top-bar-right { display: flex; align-items: center; gap: 1.5rem; }
+
+  .top-bar .brand {
+    font-family: 'Cormorant Garamond', serif; font-size: 1.1rem;
+    letter-spacing: 0.25em; color: rgba(255,255,255,0.5); font-style: italic;
+  }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.3rem 0.8rem; border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 99px; font-size: 0.65rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: rgba(255,255,255,0.35);
+  }
+
+  .status-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #3dff7a;
+    animation: blink 2s ease-in-out infinite;
+  }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .icon-btn {
+    background: none; border: none; cursor: pointer;
+    display: flex; flex-direction: column; justify-content: center; gap: 4px;
+    padding: 10px; transition: opacity 0.3s; opacity: 0.6;
+  }
+  .icon-btn:hover { opacity: 1; }
+  .menu-dot { width: 5px; height: 5px; background: #fff; border-radius: 50%; }
+
+  /* MAIN LAYOUT */
+  .mirror-layout {
+    display: flex; justify-content: center; align-items: center;
+    flex: 1; padding: 0 2rem 2rem; position: relative;
+  }
+
+  .mirror-wrapper {
+    position: relative; display: flex; flex-direction: column; align-items: center;
+    width: 100%; max-width: 1000px; height: 80vh;
+  }
+
+  /* INTENSE RING LIGHT */
+  .ring-light-frame {
+    position: relative; width: 100%; height: 100%;
+    border-radius: 24px; padding: 6px; transition: box-shadow 0.4s ease;
+  }
+  .ring-light-frame.ring-on {
+    box-shadow: 0 0 0 4px #fff, 
+                0 0 20px 8px var(--current-ring, transparent),
+                0 0 100px 40px rgba(var(--ring-rgb, 255,155,78), 0.9),
+                0 0 250px 100px rgba(var(--ring-rgb, 255,155,78), 0.6),
+                0 0 400px 150px rgba(var(--ring-rgb, 255,155,78), 0.3),
+                inset 0 0 80px 20px rgba(var(--ring-rgb, 255,155,78), 0.5);
+  }
+
+  .ring-border {
+    position: absolute; inset: -4px; border-radius: 28px; opacity: 0;
+    transition: opacity 0.4s ease; pointer-events: none;
+  }
+  .ring-light-frame.ring-on .ring-border {
+    opacity: 1; border: 4px solid #fff;
+    box-shadow: 0 0 50px 15px var(--current-ring, transparent), inset 0 0 50px 15px var(--current-ring, transparent);
+    animation: ring-pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes ring-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
+
+  .video-container {
+    position: relative; width: 100%; height: 100%;
+    border-radius: 18px; overflow: hidden; background: #050505;
+  }
+  #video {
+    width: 100%; height: 100%; object-fit: cover;
+    transform: scaleX(-1); border-radius: 18px; display: block;
+  }
+  .video-container::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.03) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.01) 100%);
+    pointer-events: none; border-radius: 18px;
+  }
+
+  /* COUNTDOWN OVERLAY */
+  #countdown-display {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    font-size: 8rem; font-weight: 300; font-family: 'Jost', sans-serif;
+    color: #fff; text-shadow: 0 0 30px rgba(255,255,255,0.5), 0 0 10px rgba(0,0,0,0.8);
+    z-index: 60; display: none; pointer-events: none;
+  }
+  .count-anim { animation: pop 1s infinite; }
+  @keyframes pop {
+    0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    20% { transform: translate(-50%, -50%) scale(1.1); opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+  }
+
+  /* COMPLIMENT OVERLAY */
+  #compliment-box {
+    position: absolute; bottom: 2rem; left: 50%; transform: translateX(-50%);
+    z-index: 10; background: rgba(0,0,0,0.6); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    padding: 1rem 2rem; text-align: center; white-space: nowrap;
+    opacity: 0; transition: opacity 0.5s ease; pointer-events: none;
+  }
+  #compliment-box.visible { opacity: 1; }
+  #compliment-text {
+    font-family: 'Cormorant Garamond', serif; font-style: italic;
+    font-size: 1.5rem; color: var(--gold-light); letter-spacing: 0.05em;
+  }
+
+  /* SETTINGS SIDE PANEL */
+  .settings-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 340px;
+    background: rgba(10,10,10,0.85); backdrop-filter: blur(25px);
+    border-left: 1px solid rgba(255,255,255,0.08); z-index: 200;
+    transform: translateX(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex; flex-direction: column; padding: 2rem; overflow-y: auto;
+    box-shadow: -10px 0 50px rgba(0,0,0,0.5);
+  }
+  .settings-panel.open { transform: translateX(0); }
+
+  .settings-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .settings-title { font-size: 0.8rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold-light); }
+  .close-btn { background: none; border: none; color: #fff; font-size: 1.5rem; cursor: pointer; opacity: 0.6; transition: opacity 0.3s; }
+  .close-btn:hover { opacity: 1; }
+
+  .settings-content { display: flex; flex-direction: column; gap: 2rem; }
+  .panel-section { display: flex; flex-direction: column; gap: 0.8rem; }
+  .panel-label { font-size: 0.6rem; letter-spacing: 0.3em; text-transform: uppercase; color: rgba(255,255,255,0.3); }
+
+  /* ACTION BUTTON (Capture) */
+  .capture-btn {
+    display: flex; align-items: center; justify-content: center; gap: 0.8rem;
+    width: 100%; padding: 1rem; background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+    color: #fff; font-family: 'Jost', sans-serif; font-size: 0.8rem;
+    letter-spacing: 0.15em; text-transform: uppercase; cursor: pointer;
+    transition: all 0.3s ease; margin-bottom: 0.5rem;
+  }
+  .capture-btn:hover { background: #fff; color: #000; box-shadow: 0 0 20px rgba(255,255,255,0.2); }
+  .capture-btn.disabled { opacity: 0.5; pointer-events: none; background: transparent; border-color: rgba(255,255,255,0.05); }
+  .capture-btn svg { width: 18px; height: 18px; fill: currentColor; }
+
+  .camera-flash {
+    position: absolute; inset: 0; background: #fff; z-index: 50;
+    opacity: 0; pointer-events: none; transition: opacity 0.1s ease-out;
+  }
+  .camera-flash.flash { opacity: 1; transition: none; }
+
+  /* TOGGLES */
+  .ring-toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem; background: var(--glass); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
+  }
+  .toggle-switch {
+    width: 36px; height: 20px; background: rgba(255,255,255,0.1);
+    border-radius: 99px; position: relative; transition: background 0.3s ease;
+  }
+  .toggle-switch.on { background: var(--current-ring, var(--ring-warm)); }
+  #timer-switch.on { background: #3dff7a; } /* specific green for timer */
+  
+  .toggle-switch::after {
+    content: ''; position: absolute; top: 3px; left: 3px;
+    width: 14px; height: 14px; background: #fff; border-radius: 50%;
+    transition: transform 0.3s ease;
+  }
+  .toggle-switch.on::after { transform: translateX(16px); }
+
+  .auto-badge {
+    font-size: 0.55rem; letter-spacing: 0.2em; padding: 0.2rem 0.5rem;
+    background: rgba(61,255,122,0.1); border: 1px solid rgba(61,255,122,0.2);
+    color: #3dff7a; border-radius: 4px; margin-left: auto; margin-right: 10px;
+  }
+  .auto-badge.off { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.2); border-color: transparent;}
+
+  .color-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+  .color-swatch {
+    padding: 0.8rem 0.5rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.07);
+    background: var(--glass); cursor: pointer; display: flex; flex-direction: column;
+    align-items: center; gap: 0.5rem; transition: all 0.2s;
+  }
+  .color-swatch:hover { background: rgba(255,255,255,0.1); }
+  .color-swatch.active { border-color: var(--swatch-color); background: rgba(var(--swatch-rgb), 0.1); }
+  .swatch-dot { width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 10px var(--swatch-color); }
+  .swatch-name { font-size: 0.65rem; letter-spacing: 0.15em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+
+  .info-card {
+    padding: 1rem; background: var(--glass); border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px; display: flex; flex-direction: column; gap: 0.8rem;
+  }
+  .face-status { display: flex; align-items: center; gap: 0.6rem; font-size: 0.8rem; color: rgba(255,255,255,0.6); }
+  .face-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.15); }
+  .face-dot.detected { background: #3dff7a; box-shadow: 0 0 8px #3dff7a; }
+
+  .brightness-bar-label { display: flex; justify-content: space-between; font-size: 0.65rem; color: rgba(255,255,255,0.4); }
+  .brightness-track { height: 4px; background: rgba(255,255,255,0.07); border-radius: 99px; overflow: hidden; }
+  .brightness-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-light)); width: 0%; transition: width 0.5s; }
+
+  .compliment-history { display: flex; flex-direction: column; gap: 0.6rem; }
+  .compliment-chip {
+    font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 0.95rem;
+    color: rgba(255,255,255,0.4); padding: 0.5rem 0.8rem; border-left: 2px solid rgba(201,168,76,0.2);
+  }
+  .compliment-chip.latest { color: var(--gold-light); border-left-color: var(--gold); background: linear-gradient(90deg, rgba(201,168,76,0.05), transparent); }
+
+  #canvas { display: none; }
+</style>
+</head>
+<body>
+
+<div id="entry-screen">
+  <div class="entry-bg"></div>
+  <div class="entry-content">
+    <div class="logo-mark">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="7" stroke="#c9a84c" stroke-width="1"/>
+        <circle cx="16" cy="16" r="2.5" fill="#c9a84c"/>
+        <line x1="16" y1="3" x2="16" y2="7" stroke="#c9a84c" stroke-width="1" stroke-linecap="round"/>
+        <line x1="16" y1="25" x2="16" y2="29" stroke="#c9a84c" stroke-width="1" stroke-linecap="round"/>
+        <line x1="3" y1="16" x2="7" y2="16" stroke="#c9a84c" stroke-width="1" stroke-linecap="round"/>
+        <line x1="25" y1="16" x2="29" y2="16" stroke="#c9a84c" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div><div class="entry-title">LUMI<span>ÈRE</span></div></div>
+    <div class="entry-sub">Smart Mirror · Ring Light · AI Compliments</div>
+    <button class="enter-btn" id="enter-btn">Enter</button>
+  </div>
+</div>
+
+<div id="mirror-screen">
+  <div class="top-bar">
+    <div class="top-bar-left">
+      <div class="brand">Lumière</div>
+      <div class="status-pill">
+        <div class="status-dot"></div>
+        <span id="status-text">Camera Active</span>
+      </div>
+    </div>
+    <div class="top-bar-right">
+      <button class="icon-btn" id="quick-capture" title="Take Picture">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.5">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+      </button>
+      <button class="icon-btn" id="menu-btn" title="Options">
+        <div class="menu-dot"></div><div class="menu-dot"></div><div class="menu-dot"></div>
+      </button>
+    </div>
+  </div>
+
+  <div class="mirror-layout">
+    <div class="mirror-wrapper">
+      <div class="ring-light-frame" id="ring-frame">
+        <div class="ring-border"></div>
+        <div class="video-container">
+          <div class="camera-flash" id="camera-flash"></div>
+          
+          <div id="countdown-display"></div>
+
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="canvas"></canvas>
+          <div id="compliment-box">
+            <div id="compliment-text">You look wonderful today ✨</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-header">
+      <span class="settings-title">Mirror Settings</span>
+      <button class="close-btn" id="close-menu">&times;</button>
+    </div>
+
+    <div class="settings-content">
+      
+      <div class="panel-section">
+        <button class="capture-btn" id="menu-capture">
+          <svg viewBox="0 0 24 24"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M21 7h-3.15L16 4.3A2 2 0 0014.4 3.5h-4.8c-.5 0-1 .2-1.6.8L6.15 7H3a2 2 0 00-2 2v10a2 2 0 002 2h18a2 2 0 002-2V9a2 2 0 00-2-2zM12 17a5 5 0 110-10 5 5 0 010 10z"/></svg>
+          Save Picture
+        </button>
+        <div class="ring-toggle" id="timer-toggle">
+          <span style="font-size: 0.8rem; color: #fff;">5-Second Timer</span>
+          <div class="toggle-switch" id="timer-switch"></div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Lighting Control</div>
+        <div class="ring-toggle" id="ring-toggle">
+          <span style="font-size: 0.8rem; color: #fff;">Ring Light</span>
+          <span class="auto-badge" id="auto-badge">AUTO</span>
+          <div class="toggle-switch" id="toggle-switch"></div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Atmosphere Color</div>
+        <div class="color-grid">
+          <div class="color-swatch active" data-color="#ff9b4e" data-rgb="255,155,78" onclick="setColor(this)">
+            <div class="swatch-dot" style="background:#ff9b4e"></div><div class="swatch-name">Warm</div>
+          </div>
+          <div class="color-swatch" data-color="#4e90ff" data-rgb="78,144,255" onclick="setColor(this)">
+            <div class="swatch-dot" style="background:#4e90ff"></div><div class="swatch-name">Blue</div>
+          </div>
+          <div class="color-swatch" data-color="#ff4e6a" data-rgb="255,78,106" onclick="setColor(this)">
+            <div class="swatch-dot" style="background:#ff4e6a"></div><div class="swatch-name">Red</div>
+          </div>
+          <div class="color-swatch" data-color="#ffe04e" data-rgb="255,224,78" onclick="setColor(this)">
+            <div class="swatch-dot" style="background:#ffe04e"></div><div class="swatch-name">Yellow</div>
+          </div>
+          <div class="color-swatch" data-color="linear" onclick="setColor(this)" style="--swatch-color:#a04eff">
+            <div class="swatch-dot" style="background: linear-gradient(135deg,#4e90ff,#ff4e6a);"></div><div class="swatch-name">Mix</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Environment Analysis</div>
+        <div class="info-card">
+          <div class="brightness-bar-label"><span>Ambient Light</span><span id="brightness-pct">—</span></div>
+          <div class="brightness-track"><div class="brightness-fill" id="brightness-fill"></div></div>
+          <div style="font-size:0.7rem; color:rgba(255,255,255,0.4); margin-top:5px;" id="light-label">Analysing...</div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">AI Status</div>
+        <div class="info-card">
+          <div class="face-status">
+            <div class="face-dot" id="face-dot"></div>
+            <span id="face-label">Looking for subject...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Recent Compliments</div>
+        <div class="compliment-history" id="compliment-history">
+          <div style="font-size:0.8rem;color:rgba(255,255,255,0.2);font-style:italic">Waiting to see you...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────────────────
+let ringOn = false;
+let autoMode = true;
+let currentColor = '#ff9b4e';
+let currentRGB = '255,155,78';
+let isLinearGradient = false;
+let faceDetected = false;
+let lastComplimentTime = 0;
+let complimentHistory = [];
+let brightnessHistory = [];
+let stream = null;
+
+// Timer State
+let timerEnabled = false;
+let isCountingDown = false;
+
+const compliments = [
+  "You're absolutely radiant today ✨",
+  "That glow? Completely natural 🌟",
+  "Your confidence is magnetic 💫",
+  "You carry grace so effortlessly 🌸",
+  "Truly one of a kind 💎",
+  "You're lighting up the room 🕯️",
+  "Gorgeous, inside and out 🌹",
+  "Effortlessly captivating 💫",
+];
+
+// ─── DOM ELEMENTS ─────────────────────────────────────────────────────
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const ringFrame = document.getElementById('ring-frame');
+const toggleSwitch = document.getElementById('toggle-switch');
+const autoBadge = document.getElementById('auto-badge');
+const faceLabel = document.getElementById('face-label');
+const faceDot = document.getElementById('face-dot');
+const lightLabel = document.getElementById('light-label');
+const brightnessFill = document.getElementById('brightness-fill');
+const brightnessPct = document.getElementById('brightness-pct');
+const complimentBox = document.getElementById('compliment-box');
+const complimentText = document.getElementById('compliment-text');
+const complimentHistoryEl = document.getElementById('compliment-history');
+const flashEl = document.getElementById('camera-flash');
+const settingsPanel = document.getElementById('settings-panel');
+const countdownDisplay = document.getElementById('countdown-display');
+const captureBtn = document.getElementById('menu-capture');
+const timerSwitch = document.getElementById('timer-switch');
+
+// ─── MENUS & ENTRY ────────────────────────────────────────────────────
+document.getElementById('enter-btn').addEventListener('click', () => {
+  document.getElementById('entry-screen').classList.add('exit');
+  setTimeout(() => {
+    document.getElementById('entry-screen').style.display = 'none';
+    document.getElementById('mirror-screen').classList.add('active');
+    startCamera();
+  }, 800);
+});
+
+document.getElementById('menu-btn').addEventListener('click', () => settingsPanel.classList.add('open'));
+document.getElementById('close-menu').addEventListener('click', () => settingsPanel.classList.remove('open'));
+
+// ─── CAMERA LOGIC ─────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      setInterval(analyzeFrame, 800);
+    };
+  } catch (e) {
+    document.getElementById('status-text').textContent = 'Camera Blocked';
+  }
+}
+
+// ─── TIMER & PICTURE LOGIC ────────────────────────────────────────────
+document.getElementById('timer-toggle').addEventListener('click', () => {
+  if (isCountingDown) return; // Prevent changing while counting
+  timerEnabled = !timerEnabled;
+  timerSwitch.classList.toggle('on', timerEnabled);
+});
+
+function executeCapture() {
+  if (!stream) return;
+  
+  // Flash effect
+  flashEl.classList.add('flash');
+  setTimeout(() => flashEl.classList.remove('flash'), 80);
+
+  // Draw to hidden canvas (flipped to mirror what user sees)
+  const captureCanvas = document.createElement('canvas');
+  captureCanvas.width = video.videoWidth;
+  captureCanvas.height = video.videoHeight;
+  const cCtx = captureCanvas.getContext('2d');
+  
+  cCtx.translate(captureCanvas.width, 0);
+  cCtx.scale(-1, 1);
+  cCtx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+
+  // Download
+  const dataURL = captureCanvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = dataURL;
+  a.download = `Lumiere_Snapshot_${new Date().getTime()}.png`;
+  a.click();
+}
+
+function handleCaptureClick() {
+  if (!stream || isCountingDown) return;
+
+  if (timerEnabled) {
+    isCountingDown = true;
+    captureBtn.classList.add('disabled');
+    settingsPanel.classList.remove('open'); // Close menu to see mirror
+    
+    let count = 5;
+    countdownDisplay.textContent = count;
+    countdownDisplay.style.display = 'block';
+    countdownDisplay.classList.add('count-anim');
+
+    const interval = setInterval(() => {
+      count--;
+      if (count > 0) {
+        countdownDisplay.textContent = count;
+        // restart animation trick
+        countdownDisplay.classList.remove('count-anim');
+        void countdownDisplay.offsetWidth; 
+        countdownDisplay.classList.add('count-anim');
+      } else {
+        clearInterval(interval);
+        countdownDisplay.style.display = 'none';
+        countdownDisplay.classList.remove('count-anim');
+        executeCapture();
+        isCountingDown = false;
+        captureBtn.classList.remove('disabled');
+      }
+    }, 1000);
+  } else {
+    executeCapture();
+  }
+}
+
+document.getElementById('quick-capture').addEventListener('click', handleCaptureClick);
+document.getElementById('menu-capture').addEventListener('click', handleCaptureClick);
+
+// ─── RING TOGGLE & COLORS ─────────────────────────────────────────────
+document.getElementById('ring-toggle').addEventListener('click', () => {
+  if (autoMode && !ringOn) { autoMode = false; ringOn = true; }
+  else if (!autoMode && ringOn) { ringOn = false; }
+  else if (!autoMode && !ringOn) { autoMode = true; }
+  else { autoMode = false; ringOn = false; }
+  updateRingUI();
+});
+
+function updateRingUI() {
+  autoBadge.classList.toggle('off', !autoMode);
+  autoBadge.textContent = autoMode ? 'AUTO' : 'MANUAL';
+  applyRing(ringOn);
+}
+
+function applyRing(on) {
+  if (on) {
+    ringFrame.classList.add('ring-on'); toggleSwitch.classList.add('on');
+    if (isLinearGradient) {
+      ringFrame.style.setProperty('--current-ring', '#9070ff');
+      ringFrame.style.setProperty('--ring-rgb', '144,112,255');
+      toggleSwitch.style.background = 'linear-gradient(90deg,#4e90ff,#ff4e6a)';
+    } else {
+      ringFrame.style.setProperty('--current-ring', currentColor);
+      ringFrame.style.setProperty('--ring-rgb', currentRGB);
+      toggleSwitch.style.background = currentColor;
+    }
+  } else {
+    ringFrame.classList.remove('ring-on'); toggleSwitch.classList.remove('on');
+    toggleSwitch.style.background = '';
+  }
+}
+
+window.setColor = function(el) {
+  document.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  el.style.setProperty('--swatch-color', el.dataset.color === 'linear' ? '#9070ff' : el.dataset.color);
+
+  isLinearGradient = el.dataset.color === 'linear';
+  currentColor = isLinearGradient ? '#9070ff' : el.dataset.color;
+  currentRGB = isLinearGradient ? '144,112,255' : el.dataset.rgb;
+  if (ringOn) applyRing(true);
+}
+
+// ─── ANALYSIS (Brightness/Face/Compliments) ───────────────────────────
+function analyzeFrame() {
+  if (video.readyState < 2) return;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+  // Brightness
+  let totalBrightness = 0, samples = 0;
+  for (let i = 0; i < data.length; i += 80) {
+    totalBrightness += 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    samples++;
+  }
+  
+  brightnessHistory.push(Math.round((totalBrightness/samples/255)*100));
+  if (brightnessHistory.length > 5) brightnessHistory.shift();
+  const smoothBr = Math.round(brightnessHistory.reduce((a,b)=>a+b,0)/brightnessHistory.length);
+
+  brightnessFill.style.width = smoothBr + '%';
+  brightnessPct.textContent = smoothBr + '%';
+  lightLabel.textContent = smoothBr < 38 ? 'Dark Environment' : smoothBr < 60 ? 'Dimly Lit' : 'Well Lit';
+
+  if (autoMode) {
+    ringOn = smoothBr < 38;
+    applyRing(ringOn);
+  }
+
+  // Basic Skin Tone Heuristic
+  let skinPx = 0, totPx = 0;
+  for (let i = 0; i < data.length; i += 160) {
+    const r=data[i], g=data[i+1], b=data[i+2];
+    if (r>60&&g>30&&b>10&&r>g&&r>b&&(r-g)>10&&Math.abs(r-g)>8) skinPx++;
+    totPx++;
+  }
+  
+  const newFace = (skinPx/totPx) > 0.04;
+  if (newFace !== faceDetected) {
+    faceDetected = newFace;
+    faceDot.classList.toggle('detected', faceDetected);
+    faceLabel.textContent = faceDetected ? 'Face detected ✓' : 'Looking for subject...';
+  }
+
+  if (faceDetected && !isCountingDown && Date.now() - lastComplimentTime > 10000) {
+    lastComplimentTime = Date.now();
+    showCompliment();
+  } else if (!faceDetected) {
+    complimentBox.classList.remove('visible');
+  }
+}
+
+function showCompliment() {
+  const c = compliments[Math.floor(Math.random() * compliments.length)];
+  complimentText.textContent = c; complimentBox.classList.add('visible');
+  complimentHistory.unshift(c);
+  if (complimentHistory.length > 4) complimentHistory.pop();
+  complimentHistoryEl.innerHTML = complimentHistory.map((h, i) => `<div class="compliment-chip ${i===0?'latest':''}">${h}</div>`).join('');
+  setTimeout(() => complimentBox.classList.remove('visible'), 5000);
+}
+</script>
+</body>
+</html>
